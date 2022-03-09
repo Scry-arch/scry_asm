@@ -75,11 +75,24 @@ impl Assemble for Raw {
     where
         I: Iterator<Item = &'a str> + Clone,
     {
-        // We first remove any whitespaces
         let cleaned = asm
+            // Remove comments
+            .flat_map(|mut s|{
+                let mut result = Vec::new();
+                while let Some((before, after)) = s.split_once(';'){
+                    // Keep anything before comment
+                    result.push(before);
+                    // Now check anything after first newline
+                    s = after.split_once(&['\r','\n']).map_or("", |(_, after_newline)| after_newline);
+                }
+                // The remaining cannot have comments
+                result.push(s);
+                result.into_iter()
+            })
+            // Remove whitespace
             .flat_map(|s| s.split(char::is_whitespace))
             .filter(|s| !s.is_empty())
-            // We split all tokens at ":", but keeping them so we can recognize the end of a group
+            // We split all tokens after ":", so we can recognize the end of a group
             .flat_map(|s| s.split_inclusive(":"))
             .peekable();
 
@@ -157,7 +170,7 @@ impl Assemble for Raw {
             ) {
                 result.write_u16::<LittleEndian>(instr.encode()).unwrap();
                 instr_count += 1;
-                if tokens > 0 {
+                if tokens > 0 || chars == first.as_ref().unwrap().len() {
                     sub_consumed = 0;
                     first = group.nth(tokens);
                 } else {

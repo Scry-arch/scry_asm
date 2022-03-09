@@ -5,6 +5,6 @@ edition = "2021"
 
 [dependencies]
 scry_isa = { path = "../scry_isa", features=["quickcheck_arbitrary"] }
-byteorder = "1.4"
+byteorder = "1.4.3"
 quickcheck = "1.0.3"
 quickcheck_macros = "1.0.0"
