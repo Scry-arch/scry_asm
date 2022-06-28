@@ -1,15 +1,17 @@
-pub trait Assemble {
-    type Error;
+pub trait Assemble
+{
+	type Error;
 
-    fn assemble<'a, I>(asm: I) -> Result<Vec<u8>, Self::Error>
-    where
-        I: Iterator<Item = &'a str> + Clone;
+	fn assemble<'a, I>(asm: I) -> Result<Vec<u8>, Self::Error>
+	where
+		I: Iterator<Item = &'a str> + Clone;
 }
 
-pub trait Disassemble {
-    type Error;
+pub trait Disassemble
+{
+	type Error;
 
-    fn disassemble<'a, I>(asm: I) -> Result<String, Self::Error>
-    where
-        I: Iterator<Item = &'a u8> + Clone;
+	fn disassemble<'a, I>(asm: I) -> Result<String, Self::Error>
+	where
+		I: Iterator<Item = &'a u8> + Clone;
 }
