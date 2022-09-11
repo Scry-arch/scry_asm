@@ -1,6 +1,6 @@
 [package]
-name = "scryasm"
-version = "0.1.0"
+name = "scry_asm"
+version = "0.0.0"
 edition = "2021"
 
 [dependencies]

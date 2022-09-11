@@ -1,8 +1,8 @@
 use byteorder::{ByteOrder, LittleEndian};
 use quickcheck::{Arbitrary, Gen, TestResult};
 use quickcheck_macros::quickcheck;
+use scry_asm::{Assemble, Raw};
 use scry_isa::{Instruction, Parser};
-use scryasm::{Assemble, Raw};
 
 /// Converts a list of instructions into their assembly
 fn to_asm_string(instructions: &Vec<Instruction>) -> String
@@ -19,9 +19,10 @@ fn to_asm_string(instructions: &Vec<Instruction>) -> String
 /// Tests that the given string is assembled into the given instructions
 fn test_assemble(assembly: String, instructions: &Vec<Instruction>) -> TestResult
 {
-	TestResult::from_bool(
-		// Assemble the string
-		Raw::assemble(std::iter::once(assembly.as_str())).map_or(false, |bytes| {
+	// Assemble the string
+	Raw::assemble(std::iter::once(assembly.as_str())).map_or(
+		TestResult::error("Failed to assemble."),
+		|bytes| {
 			// If successfully assembled, decode it to instructions
 			let mut result_instructions = Vec::new();
 			for i in 0..(bytes.len() / 2)
@@ -32,14 +33,23 @@ fn test_assemble(assembly: String, instructions: &Vec<Instruction>) -> TestResul
 			}
 			// Then check they are as expected
 			let mut equal = result_instructions.len() == instructions.len();
-			for (i1, i2) in result_instructions
-				.into_iter()
-				.zip(instructions.into_iter())
+			for (i1, i2) in result_instructions.iter().zip(instructions.iter())
 			{
-				equal &= i1 == *i2;
+				equal &= i1 == i2;
 			}
-			equal
-		}),
+
+			if equal
+			{
+				TestResult::passed()
+			}
+			else
+			{
+				TestResult::error(format!(
+					"Expected != Actual:\n{:?} != {:?}, {:?}",
+					instructions, result_instructions, assembly
+				))
+			}
+		},
 	)
 }
 

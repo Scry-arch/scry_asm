@@ -1,6 +1,6 @@
 use byteorder::{LittleEndian, ReadBytesExt};
-use scry_isa::{AluVariant, Bits, Instruction, Instruction::*};
-use scryasm::{Assemble, Raw};
+use scry_asm::{Assemble, Raw};
+use scry_isa::{AluVariant, Instruction, Instruction::*};
 use std::io::Cursor;
 
 macro_rules! test_raw {
@@ -9,7 +9,6 @@ macro_rules! test_raw {
 	) => {
         #[test]
         fn $name() {
-            println!(stringify!($($asm)*));
             // We first assemble the string
             let assembled = Raw::assemble(std::iter::once(stringify!($($asm)*))).unwrap();
 
@@ -38,9 +37,9 @@ test_raw! {
 		echo =>100
 	]
 	[
-		Alu(AluVariant::Add, Bits::new(4).unwrap()),
-		Alu(AluVariant::Sub, Bits::new(21).unwrap()),
-		EchoLong(Bits::new(100).unwrap()),
+		Alu(AluVariant::Add, 4.try_into().unwrap()),
+		Alu(AluVariant::Sub, 21.try_into().unwrap()),
+		EchoLong(100.try_into().unwrap()),
 	]
 }
 
@@ -52,9 +51,9 @@ test_raw! {
 	 instr2:	dup =>3, =>16
 	]
 	[
-		Alu(AluVariant::Inc, Bits::new(1).unwrap()),
-		Alu(AluVariant::Inc, Bits::new(0).unwrap()),
-		Duplicate(false, Bits::new(3).unwrap(), Bits::new(16).unwrap()),
+		Alu(AluVariant::Inc, 1.try_into().unwrap()),
+		Alu(AluVariant::Inc, 0.try_into().unwrap()),
+		Duplicate(false, 3.try_into().unwrap(), 16.try_into().unwrap()),
 	]
 }
 
@@ -71,14 +70,14 @@ test_raw! {
 	 instr3:    inc =>28
 	]
 	[
-		Alu(AluVariant::Inc, Bits::new(0).unwrap()),
-		Alu(AluVariant::Inc, Bits::new(1).unwrap()),
-		Alu(AluVariant::Inc, Bits::new(0).unwrap()),
-		Alu(AluVariant::Inc, Bits::new(3).unwrap()),
-		Alu(AluVariant::Inc, Bits::new(2).unwrap()),
-		Alu(AluVariant::Inc, Bits::new(1).unwrap()),
-		Alu(AluVariant::Inc, Bits::new(0).unwrap()),
-		Alu(AluVariant::Inc, Bits::new(28).unwrap()),
+		Alu(AluVariant::Inc, 0.try_into().unwrap()),
+		Alu(AluVariant::Inc, 1.try_into().unwrap()),
+		Alu(AluVariant::Inc, 0.try_into().unwrap()),
+		Alu(AluVariant::Inc, 3.try_into().unwrap()),
+		Alu(AluVariant::Inc, 2.try_into().unwrap()),
+		Alu(AluVariant::Inc, 1.try_into().unwrap()),
+		Alu(AluVariant::Inc, 0.try_into().unwrap()),
+		Alu(AluVariant::Inc, 28.try_into().unwrap()),
 	]
 }
 
@@ -91,9 +90,9 @@ test_raw! {
 	 jmpTo:     sub =>12
 	]
 	[
-		Alu(AluVariant::Inc, Bits::new(1).unwrap()),
-		Jump(Bits::new(0).unwrap(),Bits::new(1).unwrap()),
-		Alu(AluVariant::Add, Bits::new(0).unwrap()),
-		Alu(AluVariant::Sub, Bits::new(12).unwrap()),
+		Alu(AluVariant::Inc, 1.try_into().unwrap()),
+		Jump(0.try_into().unwrap(),1.try_into().unwrap()),
+		Alu(AluVariant::Add, 0.try_into().unwrap()),
+		Alu(AluVariant::Sub, 12.try_into().unwrap()),
 	]
 }
