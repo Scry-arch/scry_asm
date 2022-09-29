@@ -1,6 +1,6 @@
 use byteorder::{LittleEndian, ReadBytesExt};
 use scry_asm::{Assemble, Raw};
-use scry_isa::{AluVariant, Instruction, Instruction::*};
+use scry_isa::{AluVariant, Bits, CallVariant, Instruction, Instruction::*};
 use std::io::Cursor;
 
 macro_rules! test_raw {
@@ -94,5 +94,22 @@ test_raw! {
 		Jump(0.try_into().unwrap(),1.try_into().unwrap()),
 		Alu(AluVariant::Add, 0.try_into().unwrap()),
 		Alu(AluVariant::Sub, 12.try_into().unwrap()),
+	]
+}
+
+test_raw! {
+	return_and_const_in_middle
+	[
+				inc =>to_add
+				ret return_at
+				const 2i0
+	to_add:		add =>0
+	return_at:
+	]
+	[
+		Alu(AluVariant::Inc, 2.try_into().unwrap()),
+		Call(CallVariant::Ret, 2.try_into().unwrap()),
+		Constant(Bits::<8,true>::try_from(2).unwrap().into()),
+		Alu(AluVariant::Add, 0.try_into().unwrap()),
 	]
 }

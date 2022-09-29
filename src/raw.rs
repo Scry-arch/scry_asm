@@ -47,7 +47,7 @@ impl<'a, I: Clone + Iterator<Item = &'a str>, const EMIT_LABEL: bool> Iterator
 	}
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Group<'a, I: Clone + Iterator<Item = &'a str>, const EMIT_LABEL: bool>
 {
 	done: bool,
