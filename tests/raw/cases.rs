@@ -82,18 +82,88 @@ test_raw! {
 }
 
 test_raw! {
-	output_through_jump
+	skip_one_using_jmp
 	[
 				inc =>jmpAt=>jmpTo
-				jmp jmpAt, jmpTo
-	 jmpAt:     add =>0
+				jmp jmpTo, jmpAt
+	 jmpAt:
+				add =>0
 	 jmpTo:     sub =>12
 	]
 	[
 		Alu(AluVariant::Inc, 1.try_into().unwrap()),
-		Jump(0.try_into().unwrap(),1.try_into().unwrap()),
+		Jump(1.try_into().unwrap(),0.try_into().unwrap()),
 		Alu(AluVariant::Add, 0.try_into().unwrap()),
 		Alu(AluVariant::Sub, 12.try_into().unwrap()),
+	]
+}
+
+test_raw! {
+	skip_multiple_using_jmp
+	[
+				inc =>jmpAt=>jmpTo
+				jmp jmpTo, jmpAt
+				nop
+				nop
+	 jmpAt:
+				nop
+				nop
+				nop
+				nop
+	 jmpTo:     sub =>0
+	]
+	[
+		Alu(AluVariant::Inc, 3.try_into().unwrap()),
+		Jump(4.try_into().unwrap(),2.try_into().unwrap()),
+		Nop,
+		Nop,
+		Nop,
+		Nop,
+		Nop,
+		Nop,
+		Alu(AluVariant::Sub, 0.try_into().unwrap()),
+	]
+}
+
+test_raw! {
+	jmp_to_before_jmp
+	[
+				inc =>jmpAt=>loop=>inc_to
+		loop:	jmp loop, jmpAt
+				nop
+		inc_to:	dec =>3
+				nop
+				   sub =>0
+		jmpAt:
+	]
+	[
+		Alu(AluVariant::Inc, 7.try_into().unwrap()),
+		Jump(0.try_into().unwrap(),4.try_into().unwrap()),
+		Nop,
+		Alu(AluVariant::Dec, 3.try_into().unwrap()),
+		Nop,
+		Alu(AluVariant::Sub, 0.try_into().unwrap()),
+	]
+}
+
+test_raw! {
+	jmp_to_jmp
+	[
+				inc =>jmpAt=>loop=>inc_to
+		loop:	nop
+				jmp loop, jmpAt
+				nop
+		inc_to:	dec =>jmpAt=>loop
+				   sub =>0
+		jmpAt:
+	]
+	[
+		Alu(AluVariant::Inc, 8.try_into().unwrap()),
+		Nop,
+		Jump((-1).try_into().unwrap(),3.try_into().unwrap()),
+		Nop,
+		Alu(AluVariant::Dec, 1.try_into().unwrap()),
+		Alu(AluVariant::Sub, 0.try_into().unwrap()),
 	]
 }
 
