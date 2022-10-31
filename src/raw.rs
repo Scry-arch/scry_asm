@@ -1,7 +1,7 @@
 use crate::assemble::Assemble;
 use byteorder::{LittleEndian, WriteBytesExt};
-use scry_isa::{Instruction, Parser};
-use std::{collections::HashMap, iter::Peekable};
+use scry_isa::{CanConsume, Comma, Instruction, IntSize, Keyword, Parser, Then};
+use std::{borrow::Borrow, collections::HashMap, iter::Peekable};
 
 /// An assembler/disassembler for raw assembly.
 ///
@@ -83,6 +83,80 @@ impl<'a, I: Clone + Iterator<Item = &'a str>, const EMIT_LABEL: bool> Iterator
 	}
 }
 
+struct DirBytesKeyword();
+impl Keyword for DirBytesKeyword
+{
+	const WORD: &'static str = ".bytes";
+}
+
+fn parse_bytes_direcive<'a, F, B>(
+	mut iter: impl Iterator<Item = &'a str> + Clone,
+	f: B,
+) -> Result<(Vec<u8>, CanConsume), String>
+where
+	B: Borrow<F>,
+	F: Fn(Option<&str>, &str) -> i32,
+{
+	Then::<DirBytesKeyword, Then<IntSize, Comma>>::parse::<_, F, _>(iter.clone(), f.borrow())
+		.or(Err("Not \".bytes\" directive".to_owned()))
+		.and_then(|((_, ((signed, pow2), _)), consumed)| {
+			assert!(
+				pow2.value <= 4,
+				"We don't support values of more than 128 bits"
+			);
+			let (consumed, next_token) = consumed.advance_iter_in_place(&mut iter);
+
+			let size = 2u32.pow(pow2.value as u32);
+			if signed
+			{
+				<i128 as Parser>::parse(next_token.clone().into_iter().chain(iter.clone()), f)
+					.map_err(|err| format!("{:?}", err))
+					.and_then(|(val, consumed2)| {
+						let min_value = (2i128.pow((size - 1) * 8) * (-1)) - 1;
+						let max_value = 2i128.pow((size - 1) * 8);
+
+						if min_value <= val && max_value >= val
+						{
+							Ok((
+								val.to_le_bytes().into_iter().take(size as usize).collect(),
+								consumed.then(&consumed2),
+							))
+						}
+						else
+						{
+							Err(format!(
+								"Bytes value out of bounds (actual, minimum, maximum): {}, {}, {}",
+								val, min_value, max_value
+							))
+						}
+					})
+			}
+			else
+			{
+				<u128 as Parser>::parse(next_token.clone().into_iter().chain(iter.clone()), f)
+					.map_err(|err| format!("{:?}", err))
+					.and_then(|(val, consumed2)| {
+						let max_value = 2u128.pow(size * 8);
+
+						if max_value >= val
+						{
+							Ok((
+								val.to_le_bytes().into_iter().take(size as usize).collect(),
+								consumed.then(&consumed2),
+							))
+						}
+						else
+						{
+							Err(format!(
+								"Bytes value out of bounds (actual, minimum, maximum): {}, {}, {}",
+								val, 0, max_value
+							))
+						}
+					})
+			}
+		})
+}
+
 impl Assemble for Raw
 {
 	type Error = String;
@@ -118,44 +192,45 @@ impl Assemble for Raw
 			iter: cleaned.clone().peekable(),
 		};
 		let mut label_addresses: HashMap<&'a str, i32> = HashMap::new();
-		let mut instr_count = 0;
+		let mut byte_count = 0;
 
 		// First pass, record label addresses
 		for mut group in groups
 		{
 			// First, decode as many instructions as possible using dummy address
 			let f = |_: Option<&str>, _: &str| 2;
-			let mut next_whole = group.next();
+			let mut next_token = None;
 
-			// how many chars from the first token that have already been consumed
-			let mut sub_consumed = 0;
-
-			while let Ok((_instr, tokens, chars)) = Instruction::parse(
-				next_whole
-					.map(|s| s.get(sub_consumed..).unwrap())
-					.into_iter()
-					.chain(group.clone()),
-				f,
-			)
+			loop
 			{
-				instr_count += 1;
-				if tokens > 0 || chars == next_whole.as_ref().unwrap().len()
+				// Try to parse a directive
+				if let Ok((bytes, consumed)) =
+					parse_bytes_direcive(next_token.clone().into_iter().chain(group.clone()), f)
 				{
-					sub_consumed = 0;
-					next_whole = group.nth(tokens);
+					byte_count += bytes.len() as i32;
+					next_token = consumed
+						.advance_iter_in_place(&mut next_token.into_iter().chain(&mut group))
+						.1;
+					continue;
 				}
-				else
+
+				// Try to parse an instruction
+				if let Ok((_instr, consumed)) =
+					Instruction::parse(next_token.clone().into_iter().chain(group.clone()), f)
 				{
-					sub_consumed += chars;
+					byte_count += 2;
+					next_token = consumed
+						.advance_iter_in_place(&mut next_token.into_iter().chain(&mut group))
+						.1;
+					continue;
 				}
+				break;
 			}
 
 			// Then, there should be at most 1 token left, which must be a label
-			if let Some(label) = next_whole
-				.map(|s| s.get(sub_consumed..).unwrap())
-				.filter(|s| !s.is_empty())
+			if let Some(label) = next_token.into_iter().chain(&mut group).next()
 			{
-				if let Some(_) = label_addresses.insert(label, instr_count)
+				if let Some(_) = label_addresses.insert(label, byte_count)
 				{
 					let mut msg = "'".to_string();
 					msg.push_str(label);
@@ -165,7 +240,7 @@ impl Assemble for Raw
 			}
 
 			// If any tokens are left, something must have gone wrong
-			if let Some(token) = group.next()
+			if let Some(token) = next_token.into_iter().chain(&mut group).next()
 			{
 				let mut msg = "Phase 1 error at '".to_string();
 				msg.push_str(token);
@@ -178,35 +253,42 @@ impl Assemble for Raw
 		let groups = GroupIter::<_, false> {
 			iter: cleaned.clone().peekable(),
 		};
-		let mut result = Vec::with_capacity(instr_count as usize);
+		let mut result = Vec::with_capacity(byte_count as usize);
 		let mut instr_count = 0;
 		for mut group in groups
 		{
-			let mut first = group.next();
-			// how many chars from the first token that have already been consumed
-			let mut sub_consumed = 0;
-			while let Ok((instr, tokens, chars)) = Instruction::parse(
-				first
-					.map(|s| s.get(sub_consumed..).unwrap())
-					.into_iter()
-					.chain(group.clone()),
-				|from: Option<&str>, to: &str| {
-					2 * (label_addresses[to]
-						- from.map_or(instr_count, |from| label_addresses[from]))
-				},
-			)
+			let mut next_token = None;
+
+			loop
 			{
-				result.write_u16::<LittleEndian>(instr.encode()).unwrap();
-				instr_count += 1;
-				if tokens > 0 || chars == first.as_ref().unwrap().len()
+				let f = |from: Option<&str>, to: &str| {
+					label_addresses[to] - from.map_or(instr_count, |from| label_addresses[from])
+				};
+
+				// Try to parse a directive
+				if let Ok((bytes, consumed)) =
+					parse_bytes_direcive(next_token.clone().into_iter().chain(group.clone()), f)
 				{
-					sub_consumed = 0;
-					first = group.nth(tokens);
+					byte_count += bytes.len() as i32;
+					result.extend(bytes.into_iter());
+					next_token = consumed
+						.advance_iter_in_place(&mut next_token.into_iter().chain(&mut group))
+						.1;
+					continue;
 				}
-				else
+
+				// Try to parse an instruction
+				if let Ok((instr, consumed)) =
+					Instruction::parse(next_token.clone().into_iter().chain(group.clone()), f)
 				{
-					sub_consumed += chars;
+					result.write_u16::<LittleEndian>(instr.encode()).unwrap();
+					instr_count += 2;
+					next_token = consumed
+						.advance_iter_in_place(&mut next_token.into_iter().chain(&mut group))
+						.1;
+					continue;
 				}
+				break;
 			}
 		}
 		Ok(result)
