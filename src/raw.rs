@@ -1,6 +1,8 @@
 use crate::assemble::Assemble;
 use byteorder::{LittleEndian, WriteBytesExt};
-use scry_isa::{CanConsume, Comma, Instruction, IntSize, Keyword, Parser, Then};
+use scry_isa::{
+	Arrow, CanConsume, Comma, Instruction, IntSize, Keyword, Maybe, Parser, Resolve, Symbol, Then,
+};
 use std::{borrow::Borrow, collections::HashMap, iter::Peekable};
 
 /// An assembler/disassembler for raw assembly.
@@ -95,10 +97,10 @@ fn parse_bytes_direcive<'a, F, B>(
 ) -> Result<(Vec<u8>, CanConsume), String>
 where
 	B: Borrow<F>,
-	F: Fn(Option<&str>, &str) -> i32,
+	F: Fn(Resolve) -> i32,
 {
 	Then::<DirBytesKeyword, Then<IntSize, Comma>>::parse::<_, F, _>(iter.clone(), f.borrow())
-		.or(Err("Not \".bytes\" directive".to_owned()))
+		.or(Err("Not '.bytes' directive".to_owned()))
 		.and_then(|((_, ((signed, pow2), _)), consumed)| {
 			assert!(
 				pow2.value <= 4,
@@ -106,14 +108,36 @@ where
 			);
 			let (consumed, next_token) = consumed.advance_iter_in_place(&mut iter);
 
+			let parsed_ref = Then::<Symbol, Maybe<Then<Arrow, Symbol>>>::parse::<_, F, _>(
+				next_token.clone().into_iter().chain(iter.clone()),
+				f.borrow(),
+			)
+			.and_then(|((sym1, sym2), consumed2)| {
+				if let Some((_, sym2)) = sym2
+				{
+					Ok((f.borrow()(Resolve::Distance(sym1, sym2)), consumed2))
+				}
+				else
+				{
+					Ok((f.borrow()(Resolve::Address(sym1)), consumed2))
+				}
+			});
+
 			let size = 2u32.pow(pow2.value as u32);
 			if signed
 			{
-				<i128 as Parser>::parse(next_token.clone().into_iter().chain(iter.clone()), f)
+				parsed_ref
+					.map(|(val, consumed)| (val as i128, consumed))
+					.or_else(|_| {
+						<i128 as Parser>::parse(
+							next_token.clone().into_iter().chain(iter.clone()),
+							f,
+						)
+					})
 					.map_err(|err| format!("{:?}", err))
 					.and_then(|(val, consumed2)| {
-						let min_value = (2i128.pow((size - 1) * 8) * (-1)) - 1;
-						let max_value = 2i128.pow((size - 1) * 8);
+						let min_value = (2i128.pow((size * 8) - 1) * (-1)) - 1;
+						let max_value = 2i128.pow((size * 8) - 1);
 
 						if min_value <= val && max_value >= val
 						{
@@ -133,7 +157,14 @@ where
 			}
 			else
 			{
-				<u128 as Parser>::parse(next_token.clone().into_iter().chain(iter.clone()), f)
+				parsed_ref
+					.map(|(val, consumed)| (val as u128, consumed))
+					.or_else(|_| {
+						<u128 as Parser>::parse(
+							next_token.clone().into_iter().chain(iter.clone()),
+							f,
+						)
+					})
 					.map_err(|err| format!("{:?}", err))
 					.and_then(|(val, consumed2)| {
 						let max_value = 2u128.pow(size * 8);
@@ -198,7 +229,7 @@ impl Assemble for Raw
 		for mut group in groups
 		{
 			// First, decode as many instructions as possible using dummy address
-			let f = |_: Option<&str>, _: &str| 2;
+			let f = |_: Resolve| 2;
 			let mut next_token = None;
 
 			loop
@@ -261,8 +292,16 @@ impl Assemble for Raw
 
 			loop
 			{
-				let f = |from: Option<&str>, to: &str| {
-					label_addresses[to] - from.map_or(instr_count, |from| label_addresses[from])
+				let f = |resolve: Resolve| {
+					match resolve
+					{
+						Resolve::Address(sym) => label_addresses[sym],
+						Resolve::DistanceCurrent(sym) => label_addresses[sym] - instr_count,
+						Resolve::Distance(sym1, sym2) =>
+						{
+							label_addresses[sym2] - label_addresses[sym1]
+						},
+					}
 				};
 
 				// Try to parse a directive

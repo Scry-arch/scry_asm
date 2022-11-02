@@ -206,7 +206,7 @@ test_raw! {
 }
 
 test_raw! {
-	const_assembler_directive
+	bytes_assembler_directive
 	{
 		".bytes u0, 0"
 		".bytes i0, 1"
@@ -227,6 +227,32 @@ test_raw! {
 		Alu(AluVariant::Sub, 21.try_into().unwrap());
 		-123i16;
 		-7612i32;
+		EchoLong(100.try_into().unwrap());
+	]
+}
+
+test_raw! {
+	bytes_assembler_directive_references
+	{
+	"lab0:"		".bytes u0, lab2"
+				".bytes i0, lab4=>lab2"
+	"lab2:"		"add =>4"
+	"lab4:"		".bytes u1, lab18"
+				".bytes u2, lab4=>lab12"
+				"sub =>21"
+	"lab12:"	".bytes i1, lab12=>lab18"
+				".bytes i2, lab18=>lab0"
+	"lab18:"	"echo =>100"
+	}
+	[
+		2u8;
+		-2i8;
+		Alu(AluVariant::Add, 4.try_into().unwrap());
+		18u16;
+		8u32;
+		Alu(AluVariant::Sub, 21.try_into().unwrap());
+		6i16;
+		-18i32;
 		EchoLong(100.try_into().unwrap());
 	]
 }
