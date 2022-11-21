@@ -124,24 +124,24 @@ test_raw! {
 	{
 				"inc =>jmpAt=>jmpTo"
 				"jmp jmpTo, jmpAt"
-				"nop"
-				"nop"
+				"cap =>0, =>0"
+				"cap =>0, =>0"
 	 "jmpAt:"
-				"nop"
-				"nop"
-				"nop"
-				"nop"
+				"cap =>0, =>0"
+				"cap =>0, =>0"
+				"cap =>0, =>0"
+				"cap =>0, =>0"
 	 "jmpTo:"	"sub =>0"
 	}
 	[
 		Alu(AluVariant::Inc, 3.try_into().unwrap());
 		Jump(4.try_into().unwrap(),2.try_into().unwrap());
-		Nop;
-		Nop;
-		Nop;
-		Nop;
-		Nop;
-		Nop;
+		Instruction::nop();
+		Instruction::nop();
+		Instruction::nop();
+		Instruction::nop();
+		Instruction::nop();
+		Instruction::nop();
 		Alu(AluVariant::Sub, 0.try_into().unwrap());
 	]
 }
@@ -151,18 +151,18 @@ test_raw! {
 	{
 					"inc =>jmpAt=>loop=>inc_to"
 		"loop:"		"jmp loop, jmpAt"
-					"nop"
+					"cap =>0, =>0"
 		"inc_to:"	"dec =>3"
-					"nop"
+					"cap =>0, =>0"
 					"sub =>0"
 		"jmpAt:"
 	}
 	[
 		Alu(AluVariant::Inc, 7.try_into().unwrap());
 		Jump(0.try_into().unwrap(),4.try_into().unwrap());
-		Nop;
+		Instruction::nop();
 		Alu(AluVariant::Dec, 3.try_into().unwrap());
-		Nop;
+		Instruction::nop();
 		Alu(AluVariant::Sub, 0.try_into().unwrap());
 	]
 }
@@ -171,18 +171,18 @@ test_raw! {
 	jmp_to_jmp
 	{
 					"inc =>jmpAt=>loop=>inc_to"
-		"loop:"		"nop"
+		"loop:"		"cap =>0, =>0"
 					"jmp loop, jmpAt"
-					"nop"
+					"cap =>0, =>0"
 		"inc_to:"	"dec =>jmpAt=>loop"
 					   "sub =>0"
 		"jmpAt:"
 	}
 	[
 		Alu(AluVariant::Inc, 8.try_into().unwrap());
-		Nop;
+		Instruction::nop();
 		Jump((-1).try_into().unwrap(),3.try_into().unwrap());
-		Nop;
+		Instruction::nop();
 		Alu(AluVariant::Dec, 1.try_into().unwrap());
 		Alu(AluVariant::Sub, 0.try_into().unwrap());
 	]
