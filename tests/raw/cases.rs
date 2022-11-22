@@ -45,7 +45,7 @@ macro_rules! test_raw {
 			)+
 
             // Ensure they were encoding is equivalent to the expected instructions
-            assert_eq!(assembled, expected_bytes);
+            assert_eq!(assembled, expected_bytes, "Assembled code on the left.");
         }
     };
 }
@@ -254,5 +254,19 @@ test_raw! {
 		6i16;
 		-18i32;
 		EchoLong(100.try_into().unwrap());
+	]
+}
+
+test_raw! {
+	bytes_followed_by_label_reference
+	{
+					".bytes u1, 0"
+					"inc =>dup_addr"
+	"dup_addr:"		"cap =>0, =>0"
+	}
+	[
+		0u16;
+		Alu(AluVariant::Inc, 0.try_into().unwrap());
+		Instruction::nop();
 	]
 }

@@ -285,7 +285,7 @@ impl Assemble for Raw
 			iter: cleaned.clone().peekable(),
 		};
 		let mut result = Vec::with_capacity(byte_count as usize);
-		let mut instr_count = 0;
+		let mut byte_count = 0;
 		for mut group in groups
 		{
 			let mut next_token = None;
@@ -296,7 +296,7 @@ impl Assemble for Raw
 					match resolve
 					{
 						Resolve::Address(sym) => label_addresses[sym],
-						Resolve::DistanceCurrent(sym) => label_addresses[sym] - instr_count,
+						Resolve::DistanceCurrent(sym) => label_addresses[sym] - byte_count,
 						Resolve::Distance(sym1, sym2) =>
 						{
 							label_addresses[sym2] - label_addresses[sym1]
@@ -321,7 +321,7 @@ impl Assemble for Raw
 					Instruction::parse(next_token.clone().into_iter().chain(group.clone()), f)
 				{
 					result.write_u16::<LittleEndian>(instr.encode()).unwrap();
-					instr_count += 2;
+					byte_count += 2;
 					next_token = consumed
 						.advance_iter_in_place(&mut next_token.into_iter().chain(&mut group))
 						.1;
