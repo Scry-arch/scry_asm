@@ -1,7 +1,8 @@
 use crate::assemble::Assemble;
 use byteorder::{LittleEndian, WriteBytesExt};
 use scry_isa::{
-	Arrow, CanConsume, Comma, Instruction, IntSize, Keyword, Maybe, Parser, Resolve, Symbol, Then,
+	Arrow, CanConsume, Comma, Instruction, IntSize, Keyword, Maybe, ParseError, ParseErrorType,
+	Parser, Resolve, Symbol, Then,
 };
 use std::{borrow::Borrow, collections::HashMap, iter::Peekable};
 
@@ -97,9 +98,10 @@ fn parse_bytes_direcive<'a, F, B>(
 ) -> Result<(Vec<u8>, CanConsume), String>
 where
 	B: Borrow<F>,
-	F: Fn(Resolve) -> i32,
+	F: Fn(Resolve<'a>) -> Result<i32, &'a str>,
 {
-	Then::<DirBytesKeyword, Then<IntSize, Comma>>::parse::<_, F, _>(iter.clone(), f.borrow())
+	let f: &F = f.borrow();
+	Then::<DirBytesKeyword, Then<IntSize, Comma>>::parse::<_, F, _>(iter.clone(), f)
 		.or(Err("Not '.bytes' directive".to_owned()))
 		.and_then(|((_, ((signed, pow2), _)), consumed)| {
 			assert!(
@@ -110,17 +112,21 @@ where
 
 			let parsed_ref = Then::<Symbol, Maybe<Then<Arrow, Symbol>>>::parse::<_, F, _>(
 				next_token.clone().into_iter().chain(iter.clone()),
-				f.borrow(),
+				f,
 			)
 			.and_then(|((sym1, sym2), consumed2)| {
 				if let Some((_, sym2)) = sym2
 				{
-					Ok((f.borrow()(Resolve::Distance(sym1, sym2)), consumed2))
+					f(Resolve::Distance(sym1, sym2))
 				}
 				else
 				{
-					Ok((f.borrow()(Resolve::Address(sym1)), consumed2))
+					f(Resolve::Address(sym1))
 				}
+				.map_err(|_| {
+					ParseError::from_consumed(consumed2.clone(), ParseErrorType::UnkownSymbol)
+				})
+				.map(|addr| (addr, consumed2))
 			});
 
 			let size = 2u32.pow(pow2.value as u32);
@@ -129,7 +135,7 @@ where
 				parsed_ref
 					.map(|(val, consumed)| (val as i128, consumed))
 					.or_else(|_| {
-						<i128 as Parser>::parse(
+						<i128 as Parser>::parse::<_, F, _>(
 							next_token.clone().into_iter().chain(iter.clone()),
 							f,
 						)
@@ -160,7 +166,7 @@ where
 				parsed_ref
 					.map(|(val, consumed)| (val as u128, consumed))
 					.or_else(|_| {
-						<u128 as Parser>::parse(
+						<u128 as Parser>::parse::<_, F, _>(
 							next_token.clone().into_iter().chain(iter.clone()),
 							f,
 						)
@@ -229,7 +235,7 @@ impl Assemble for Raw
 		for mut group in groups
 		{
 			// First, decode as many instructions as possible using dummy address
-			let f = |_: Resolve| 2;
+			let f = |_: Resolve| Ok(2);
 			let mut next_token = None;
 
 			loop
@@ -292,21 +298,38 @@ impl Assemble for Raw
 
 			loop
 			{
-				let f = |resolve: Resolve| {
+				let f = |resolve| {
 					match resolve
 					{
-						Resolve::Address(sym) => label_addresses[sym],
-						Resolve::DistanceCurrent(sym) => label_addresses[sym] - byte_count,
+						Resolve::Address(sym) => label_addresses.get(sym).cloned().ok_or(sym),
+						Resolve::DistanceCurrent(sym) =>
+						{
+							label_addresses
+								.get(sym)
+								.ok_or(sym)
+								.map(|addr| addr - byte_count)
+						},
 						Resolve::Distance(sym1, sym2) =>
 						{
-							label_addresses[sym2] - label_addresses[sym1]
+							if !label_addresses.contains_key(sym2)
+							{
+								Err(sym2)
+							}
+							else if !label_addresses.contains_key(sym1)
+							{
+								Err(sym1)
+							}
+							else
+							{
+								Ok(label_addresses[sym2] - label_addresses[sym1])
+							}
 						},
 					}
 				};
 
 				// Try to parse a directive
-				if let Ok((bytes, consumed)) =
-					parse_bytes_direcive(next_token.clone().into_iter().chain(group.clone()), f)
+				let all_tokens = next_token.clone().into_iter().chain(group.clone());
+				if let Ok((bytes, consumed)) = parse_bytes_direcive(all_tokens.clone(), f)
 				{
 					byte_count += bytes.len() as i32;
 					result.extend(bytes.into_iter());
@@ -317,17 +340,27 @@ impl Assemble for Raw
 				}
 
 				// Try to parse an instruction
-				if let Ok((instr, consumed)) =
-					Instruction::parse(next_token.clone().into_iter().chain(group.clone()), f)
+				match Instruction::parse(all_tokens.clone(), f)
 				{
-					result.write_u16::<LittleEndian>(instr.encode()).unwrap();
-					byte_count += 2;
-					next_token = consumed
-						.advance_iter_in_place(&mut next_token.into_iter().chain(&mut group))
-						.1;
-					continue;
+					Ok((instr, consumed)) =>
+					{
+						result.write_u16::<LittleEndian>(instr.encode()).unwrap();
+						byte_count += 2;
+						next_token = consumed
+							.advance_iter_in_place(&mut next_token.into_iter().chain(&mut group))
+							.1;
+						continue;
+					},
+					Err(err) if err.err_type == ParseErrorType::UnkownSymbol =>
+					{
+						return Err(format!(
+							"Unknown label: {}",
+							err.extract_from_iter(all_tokens)
+						))
+					},
+					// Group finished
+					_ => break,
 				}
-				break;
 			}
 		}
 		Ok(result)
