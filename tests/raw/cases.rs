@@ -50,6 +50,23 @@ macro_rules! test_raw {
     };
 }
 
+macro_rules! test_raw_fail {
+    (
+		$name:ident { $($asm:literal)* } $err_msg:literal
+	) => {
+        #[test]
+        fn $name() {
+            // We first assemble the string
+            let assembled = Raw::assemble([
+				$($asm),*
+			].into_iter());
+
+			// Check that that an error message is returned, with checking the error
+			assert_eq!(assembled, Err($err_msg.to_string()));
+        }
+    };
+}
+
 test_raw! {
 	independent_instructions
 	{
@@ -269,4 +286,14 @@ test_raw! {
 		Alu(AluVariant::Inc, 0.try_into().unwrap());
 		Instruction::nop();
 	]
+}
+
+test_raw_fail! {
+	ret_trigger_before_instr
+	{
+		"before_ret:"
+						"add =>0"
+						"ret before_ret"
+	}
+	"Invalid Value (Should be 0 - 63): -1\nSource: before_ret"
 }

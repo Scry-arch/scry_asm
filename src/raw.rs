@@ -351,15 +351,31 @@ impl Assemble for Raw
 							.1;
 						continue;
 					},
-					Err(err) if err.err_type == ParseErrorType::UnkownSymbol =>
+					Err(err) =>
 					{
-						return Err(format!(
-							"Unknown label: {}",
-							err.extract_from_iter(all_tokens)
-						))
+						match err.err_type
+						{
+							ParseErrorType::UnkownSymbol =>
+							{
+								return Err(format!(
+									"Unknown label: {}",
+									err.extract_from_iter(all_tokens)
+								))
+							},
+							ParseErrorType::OutOfBoundValue(val, min, max) =>
+							{
+								return Err(format!(
+									"Invalid Value (Should be {} - {}): {}\nSource: {}",
+									min,
+									max,
+									val,
+									err.extract_from_iter(all_tokens)
+								))
+							},
+							// Group finished
+							_ => break,
+						}
 					},
-					// Group finished
-					_ => break,
 				}
 			}
 		}
