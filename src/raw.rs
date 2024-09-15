@@ -124,7 +124,7 @@ where
 					f(Resolve::Address(sym1))
 				}
 				.map_err(|_| {
-					ParseError::from_consumed(consumed2.clone(), ParseErrorType::UnkownSymbol)
+					ParseError::from_consumed(consumed2.clone(), ParseErrorType::UnknownSymbol)
 				})
 				.map(|addr| (addr, consumed2))
 			});
@@ -355,7 +355,7 @@ impl Assemble for Raw
 					{
 						match err.err_type
 						{
-							ParseErrorType::UnkownSymbol =>
+							ParseErrorType::UnknownSymbol =>
 							{
 								return Err(format!(
 									"Unknown label: {}",

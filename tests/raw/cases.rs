@@ -297,3 +297,10 @@ test_raw_fail! {
 	}
 	"Invalid Value (Should be 0 - 63): -1\nSource: before_ret"
 }
+test_raw_fail! {
+	const_invalid_label
+	{
+		"const u0, cmp_fn_addr"
+	}
+	"Unknown label: cmp_fn_addr"
+}
