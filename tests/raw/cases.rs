@@ -288,6 +288,25 @@ test_raw! {
 	]
 }
 
+test_raw! {
+	target_after_call_trigger
+	{
+						"call call_args"
+						"inc =>call_args"
+						"inc =>|=>after_call_args"
+	"call_args:"
+						"dec =>after_call_args"
+	"after_call_args:"	"sub =>0"
+	}
+	[
+		Call(CallVariant::Call, 2.try_into().unwrap());
+		Alu(AluVariant::Inc, 1.try_into().unwrap());
+		Alu(AluVariant::Inc, 2.try_into().unwrap());
+		Alu(AluVariant::Dec, 0.try_into().unwrap());
+		Alu(AluVariant::Sub, 0.try_into().unwrap());
+	]
+}
+
 test_raw_fail! {
 	ret_trigger_before_instr
 	{
@@ -297,6 +316,7 @@ test_raw_fail! {
 	}
 	"Invalid Value (Should be 0 - 63): -1\nSource: before_ret"
 }
+
 test_raw_fail! {
 	const_invalid_label
 	{
