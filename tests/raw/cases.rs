@@ -84,13 +84,13 @@ test_raw! {
 test_raw! {
 	output_to_next
 	{
-				"inc =>instr2"
-				"inc =>instr2"
+				"add =>instr2"
+				"add =>instr2"
 	 "instr2:"	"dup =>3, =>16"
 	}
 	[
-		Alu(AluVariant::Inc, 1.try_into().unwrap());
-		Alu(AluVariant::Inc, 0.try_into().unwrap());
+		Alu(AluVariant::Add, 1.try_into().unwrap());
+		Alu(AluVariant::Add, 0.try_into().unwrap());
 		Duplicate(false, 3.try_into().unwrap(), 16.try_into().unwrap());
 	]
 }
@@ -98,38 +98,38 @@ test_raw! {
 test_raw! {
 	multiple_label_targets
 	{
-				"inc =>instr"
-	 "instr:"	"inc =>instr2"
-				"inc =>instr2"
-	 "instr2:"	"inc =>instr3"
-				"inc =>instr3"
-				"inc =>instr3"
-				"inc =>instr3"
-	 "instr3:"	"inc =>28"
+				"add =>instr"
+	 "instr:"	"add =>instr2"
+				"add =>instr2"
+	 "instr2:"	"add =>instr3"
+				"add =>instr3"
+				"add =>instr3"
+				"add =>instr3"
+	 "instr3:"	"add =>28"
 	}
 	[
-		Alu(AluVariant::Inc, 0.try_into().unwrap());
-		Alu(AluVariant::Inc, 1.try_into().unwrap());
-		Alu(AluVariant::Inc, 0.try_into().unwrap());
-		Alu(AluVariant::Inc, 3.try_into().unwrap());
-		Alu(AluVariant::Inc, 2.try_into().unwrap());
-		Alu(AluVariant::Inc, 1.try_into().unwrap());
-		Alu(AluVariant::Inc, 0.try_into().unwrap());
-		Alu(AluVariant::Inc, 28.try_into().unwrap());
+		Alu(AluVariant::Add, 0.try_into().unwrap());
+		Alu(AluVariant::Add, 1.try_into().unwrap());
+		Alu(AluVariant::Add, 0.try_into().unwrap());
+		Alu(AluVariant::Add, 3.try_into().unwrap());
+		Alu(AluVariant::Add, 2.try_into().unwrap());
+		Alu(AluVariant::Add, 1.try_into().unwrap());
+		Alu(AluVariant::Add, 0.try_into().unwrap());
+		Alu(AluVariant::Add, 28.try_into().unwrap());
 	]
 }
 
 test_raw! {
 	skip_one_using_jmp
 	{
-				"inc =>jmpAt=>jmpTo"
+				"add =>jmpAt=>jmpTo"
 				"jmp jmpTo, jmpAt"
 	 "jmpAt:"
 				"add =>0"
 	 "jmpTo:"	"sub =>12"
 	}
 	[
-		Alu(AluVariant::Inc, 1.try_into().unwrap());
+		Alu(AluVariant::Add, 1.try_into().unwrap());
 		Jump(1.try_into().unwrap(),0.try_into().unwrap());
 		Alu(AluVariant::Add, 0.try_into().unwrap());
 		Alu(AluVariant::Sub, 12.try_into().unwrap());
@@ -139,7 +139,7 @@ test_raw! {
 test_raw! {
 	skip_multiple_using_jmp
 	{
-				"inc =>jmpAt=>jmpTo"
+				"add =>jmpAt=>jmpTo"
 				"jmp jmpTo, jmpAt"
 				"cap =>0, =>0"
 				"cap =>0, =>0"
@@ -151,7 +151,7 @@ test_raw! {
 	 "jmpTo:"	"sub =>0"
 	}
 	[
-		Alu(AluVariant::Inc, 3.try_into().unwrap());
+		Alu(AluVariant::Add, 3.try_into().unwrap());
 		Jump(4.try_into().unwrap(),2.try_into().unwrap());
 		Instruction::nop();
 		Instruction::nop();
@@ -166,19 +166,19 @@ test_raw! {
 test_raw! {
 	jmp_to_before_jmp
 	{
-					"inc =>jmpAt=>loop=>inc_to"
+					"add =>jmpAt=>loop=>inc_to"
 		"loop:"		"jmp loop, jmpAt"
 					"cap =>0, =>0"
-		"inc_to:"	"dec =>3"
+		"inc_to:"	"sub =>3"
 					"cap =>0, =>0"
 					"sub =>0"
 		"jmpAt:"
 	}
 	[
-		Alu(AluVariant::Inc, 7.try_into().unwrap());
+		Alu(AluVariant::Add, 7.try_into().unwrap());
 		Jump(0.try_into().unwrap(),4.try_into().unwrap());
 		Instruction::nop();
-		Alu(AluVariant::Dec, 3.try_into().unwrap());
+		Alu(AluVariant::Sub, 3.try_into().unwrap());
 		Instruction::nop();
 		Alu(AluVariant::Sub, 0.try_into().unwrap());
 	]
@@ -187,20 +187,20 @@ test_raw! {
 test_raw! {
 	jmp_to_jmp
 	{
-					"inc =>jmpAt=>loop=>inc_to"
+					"add =>jmpAt=>loop=>inc_to"
 		"loop:"		"cap =>0, =>0"
 					"jmp loop, jmpAt"
 					"cap =>0, =>0"
-		"inc_to:"	"dec =>jmpAt=>loop"
+		"inc_to:"	"sub =>jmpAt=>loop"
 					   "sub =>0"
 		"jmpAt:"
 	}
 	[
-		Alu(AluVariant::Inc, 8.try_into().unwrap());
+		Alu(AluVariant::Add, 8.try_into().unwrap());
 		Instruction::nop();
 		Jump((-1).try_into().unwrap(),3.try_into().unwrap());
 		Instruction::nop();
-		Alu(AluVariant::Dec, 1.try_into().unwrap());
+		Alu(AluVariant::Sub, 1.try_into().unwrap());
 		Alu(AluVariant::Sub, 0.try_into().unwrap());
 	]
 }
@@ -208,14 +208,14 @@ test_raw! {
 test_raw! {
 	return_and_const_in_middle
 	{
-						"inc =>to_add"
+						"add =>to_add"
 						"ret return_at"
 						"const i0, 2"
 		"to_add:"		"add =>0"
 		"return_at:"
 	}
 	[
-		Alu(AluVariant::Inc, 2.try_into().unwrap());
+		Alu(AluVariant::Add, 2.try_into().unwrap());
 		Call(CallVariant::Ret, 2.try_into().unwrap());
 		Constant(Bits::<8,true>::try_from(2).unwrap().into());
 		Alu(AluVariant::Add, 0.try_into().unwrap());
@@ -278,12 +278,12 @@ test_raw! {
 	bytes_followed_by_label_reference
 	{
 					".bytes u1, 0"
-					"inc =>dup_addr"
+					"add =>dup_addr"
 	"dup_addr:"		"cap =>0, =>0"
 	}
 	[
 		0u16;
-		Alu(AluVariant::Inc, 0.try_into().unwrap());
+		Alu(AluVariant::Add, 0.try_into().unwrap());
 		Instruction::nop();
 	]
 }
@@ -292,18 +292,46 @@ test_raw! {
 	target_after_call_trigger
 	{
 						"call call_args"
-						"inc =>call_args"
-						"inc =>|=>after_call_args"
+						"add =>call_args"
+						"add =>|=>after_call_args"
 	"call_args:"
-						"dec =>after_call_args"
+						"sub =>after_call_args"
 	"after_call_args:"	"sub =>0"
 	}
 	[
 		Call(CallVariant::Call, 2.try_into().unwrap());
-		Alu(AluVariant::Inc, 1.try_into().unwrap());
-		Alu(AluVariant::Inc, 2.try_into().unwrap());
-		Alu(AluVariant::Dec, 0.try_into().unwrap());
+		Alu(AluVariant::Add, 1.try_into().unwrap());
+		Alu(AluVariant::Add, 2.try_into().unwrap());
 		Alu(AluVariant::Sub, 0.try_into().unwrap());
+		Alu(AluVariant::Sub, 0.try_into().unwrap());
+	]
+}
+
+test_raw! {
+	multipath
+	{
+						"echo =>target1"
+						"echo =>branch_at=>branch_to=>target2"
+						"echo =>(target1, branch_at=>branch_to=>target2)"
+						"nop"
+
+		"branch_at:"
+						"nop"
+		"target1:"		"nop"
+
+		"branch_to:"
+						"nop"
+		"target2:"		"nop"
+	}
+	[
+		EchoLong(4.try_into().unwrap());
+		EchoLong(3.try_into().unwrap());
+		EchoLong(2.try_into().unwrap());
+		NoOp;
+		NoOp;
+		NoOp;
+		NoOp;
+		NoOp;
 	]
 }
 

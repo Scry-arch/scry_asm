@@ -1,5 +1,6 @@
 use crate::assemble::Assemble;
 use byteorder::{LittleEndian, WriteBytesExt};
+use regex::Regex;
 use scry_isa::{
 	Arrow, CanConsume, Comma, Instruction, IntSize, Keyword, Maybe, ParseError, ParseErrorType,
 	Parser, Resolve, Symbol, Then,
@@ -225,48 +226,40 @@ impl Assemble for Raw
             .flat_map(|s| s.split_inclusive(":"))
             .peekable();
 
-		let groups = GroupIter::<_, true> {
-			iter: cleaned.clone().peekable(),
-		};
+		let mut clean_peek = cleaned.clone().peekable();
 		let mut label_addresses: HashMap<&'a str, i32> = HashMap::new();
 		let mut byte_count = 0;
 
+		let mnems_pat = scry_isa::INSTRUCTION_MNEMONICS.iter()
+			.map(|d| regex::escape(d)) // ensures special characters are treated literally
+			.collect::<Vec<String>>()
+			.join("|");
+		let dirs_pat = [DirBytesKeyword::WORD].iter()
+			.map(|d| regex::escape(d)) // ensures special characters are treated literally
+			.collect::<Vec<String>>()
+			.join("|");
+
+		let re_mnems = Regex::new(&format!("^({})$", mnems_pat)).unwrap();
+		let re_dirs = Regex::new(&format!("^({})$", dirs_pat)).unwrap();
+
 		// First pass, record label addresses
-		for mut group in groups
+		loop
 		{
-			// First, decode as many instructions as possible using dummy address
-			let f = |_: Resolve| Ok(2);
-			let mut next_token = None;
-
-			loop
+			let tok = if let Some(tok) = clean_peek.next()
 			{
-				// Try to parse a directive
-				if let Ok((bytes, consumed)) =
-					parse_bytes_direcive(next_token.clone().into_iter().chain(group.clone()), f)
-				{
-					byte_count += bytes.len() as i32;
-					next_token = consumed
-						.advance_iter_in_place(&mut next_token.into_iter().chain(&mut group))
-						.1;
-					continue;
-				}
-
-				// Try to parse an instruction
-				if let Ok((_instr, consumed)) =
-					Instruction::parse(next_token.clone().into_iter().chain(group.clone()), f)
-				{
-					byte_count += 2;
-					next_token = consumed
-						.advance_iter_in_place(&mut next_token.into_iter().chain(&mut group))
-						.1;
-					continue;
-				}
-				break;
+				tok
 			}
-
-			// Then, there should be at most 1 token left, which must be a label
-			if let Some(label) = next_token.into_iter().chain(&mut group).next()
+			else
 			{
+				// done
+				break;
+			};
+
+			if tok.ends_with(':') || clean_peek.peek() == Some(&":")
+			{
+				// Found the label
+
+				let label = tok.split(':').next().unwrap();
 				if let Some(_) = label_addresses.insert(label, byte_count)
 				{
 					let mut msg = "'".to_string();
@@ -274,15 +267,40 @@ impl Assemble for Raw
 					msg.push_str("' defined twice");
 					return Err(msg);
 				}
+				continue;
 			}
 
-			// If any tokens are left, something must have gone wrong
-			if let Some(token) = next_token.into_iter().chain(&mut group).next()
+			if re_dirs.is_match(tok)
 			{
-				let mut msg = "Phase 1 error at '".to_string();
-				msg.push_str(token);
-				msg.push_str("'");
-				return Err(msg);
+				// parse directive
+
+				match parse_bytes_direcive(
+					Some(tok).into_iter().chain(clean_peek.clone()),
+					|_: Resolve| Ok(2),
+				)
+				{
+					Ok((bytes, consumed)) =>
+					{
+						byte_count += bytes.len() as i32;
+						consumed
+							.advance_iter_in_place(
+								&mut Some(tok).into_iter().chain(&mut clean_peek),
+							)
+							.1;
+						continue;
+					},
+					Err(err) =>
+					{
+						let mut msg = "Directive parsing error: ".to_string();
+						msg.push_str(err.as_str());
+						return Err(msg);
+					},
+				}
+			}
+			else if re_mnems.is_match(tok)
+			{
+				// Start of instruction, count up 2 bytes
+				byte_count += 2;
 			}
 		}
 
