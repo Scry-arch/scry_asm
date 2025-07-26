@@ -2,8 +2,8 @@ use crate::assemble::Assemble;
 use byteorder::{LittleEndian, WriteBytesExt};
 use regex::Regex;
 use scry_isa::{
-	Arrow, CanConsume, Comma, Instruction, IntSize, Keyword, Maybe, ParseError, ParseErrorType,
-	Parser, Resolve, Symbol, Then,
+	Arrow, CanConsume, Comma, Instruction, Keyword, Maybe, ParseError, ParseErrorType, Parser,
+	Resolve, Symbol, Then, Type, TypeMatcher,
 };
 use std::{borrow::Borrow, collections::HashMap, iter::Peekable};
 
@@ -102,13 +102,14 @@ where
 	F: Fn(Resolve<'a>) -> Result<i32, &'a str>,
 {
 	let f: &F = f.borrow();
-	Then::<DirBytesKeyword, Then<IntSize, Comma>>::parse::<_, F, _>(iter.clone(), f)
+	Then::<DirBytesKeyword, Then<TypeMatcher<4, 3>, Comma>>::parse::<_, F, _>(iter.clone(), f)
 		.or(Err("Not '.bytes' directive".to_owned()))
-		.and_then(|((_, ((signed, pow2), _)), consumed)| {
-			assert!(
-				pow2.value <= 4,
-				"We don't support values of more than 128 bits"
-			);
+		.and_then(|((_, (typ_bits, _)), consumed)| {
+			let typ: Type = typ_bits.try_into().unwrap();
+			let signed = typ.is_signed_int();
+			let pow2 = typ.size_pow2();
+
+			assert!(pow2 <= 4, "We don't support values of more than 128 bits");
 			let (consumed, next_token) = consumed.advance_iter_in_place(&mut iter);
 
 			let parsed_ref = Then::<Symbol, Maybe<Then<Arrow, Symbol>>>::parse::<_, F, _>(
@@ -130,7 +131,7 @@ where
 				.map(|addr| (addr, consumed2))
 			});
 
-			let size = 2u32.pow(pow2.value as u32);
+			let size = typ.size() as u32;
 			if signed
 			{
 				parsed_ref

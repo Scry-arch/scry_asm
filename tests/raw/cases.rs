@@ -1,6 +1,6 @@
 use duplicate::duplicate_item;
 use scry_asm::{Assemble, Raw};
-use scry_isa::{AluVariant, Bits, CallVariant, Instruction, Instruction::*};
+use scry_isa::{AluVariant, Bits, CallVariant, Instruction, Instruction::*, Type};
 
 trait ByteBlock
 {
@@ -141,24 +141,24 @@ test_raw! {
 	{
 				"add =>jmpAt=>jmpTo"
 				"jmp jmpTo, jmpAt"
-				"cap =>0, =>0"
-				"cap =>0, =>0"
+				"nop"
+				"nop"
 	 "jmpAt:"
-				"cap =>0, =>0"
-				"cap =>0, =>0"
-				"cap =>0, =>0"
-				"cap =>0, =>0"
+				"nop"
+				"nop"
+				"nop"
+				"nop"
 	 "jmpTo:"	"sub =>0"
 	}
 	[
 		Alu(AluVariant::Add, 3.try_into().unwrap());
 		Jump(4.try_into().unwrap(),2.try_into().unwrap());
-		Instruction::nop();
-		Instruction::nop();
-		Instruction::nop();
-		Instruction::nop();
-		Instruction::nop();
-		Instruction::nop();
+		NoOp;
+		NoOp;
+		NoOp;
+		NoOp;
+		NoOp;
+		NoOp;
 		Alu(AluVariant::Sub, 0.try_into().unwrap());
 	]
 }
@@ -168,18 +168,18 @@ test_raw! {
 	{
 					"add =>jmpAt=>loop=>inc_to"
 		"loop:"		"jmp loop, jmpAt"
-					"cap =>0, =>0"
+					"nop"
 		"inc_to:"	"sub =>3"
-					"cap =>0, =>0"
+					"nop"
 					"sub =>0"
 		"jmpAt:"
 	}
 	[
 		Alu(AluVariant::Add, 7.try_into().unwrap());
 		Jump(0.try_into().unwrap(),4.try_into().unwrap());
-		Instruction::nop();
+		NoOp;
 		Alu(AluVariant::Sub, 3.try_into().unwrap());
-		Instruction::nop();
+		NoOp;
 		Alu(AluVariant::Sub, 0.try_into().unwrap());
 	]
 }
@@ -188,18 +188,18 @@ test_raw! {
 	jmp_to_jmp
 	{
 					"add =>jmpAt=>loop=>inc_to"
-		"loop:"		"cap =>0, =>0"
+		"loop:"		"nop"
 					"jmp loop, jmpAt"
-					"cap =>0, =>0"
+					"nop"
 		"inc_to:"	"sub =>jmpAt=>loop"
 					   "sub =>0"
 		"jmpAt:"
 	}
 	[
 		Alu(AluVariant::Add, 8.try_into().unwrap());
-		Instruction::nop();
+		NoOp;
 		Jump((-1).try_into().unwrap(),3.try_into().unwrap());
-		Instruction::nop();
+		NoOp;
 		Alu(AluVariant::Sub, 1.try_into().unwrap());
 		Alu(AluVariant::Sub, 0.try_into().unwrap());
 	]
@@ -217,7 +217,7 @@ test_raw! {
 	[
 		Alu(AluVariant::Add, 2.try_into().unwrap());
 		Call(CallVariant::Ret, 2.try_into().unwrap());
-		Constant(Bits::<8,true>::try_from(2).unwrap().into());
+		Constant(Type::Int(0).try_into().unwrap(), Bits::<8,true>::try_from(2).unwrap().into());
 		Alu(AluVariant::Add, 0.try_into().unwrap());
 	]
 }
@@ -279,12 +279,12 @@ test_raw! {
 	{
 					".bytes u1, 0"
 					"add =>dup_addr"
-	"dup_addr:"		"cap =>0, =>0"
+	"dup_addr:"		"nop"
 	}
 	[
 		0u16;
 		Alu(AluVariant::Add, 0.try_into().unwrap());
-		Instruction::nop();
+		NoOp;
 	]
 }
 
