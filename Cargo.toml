@@ -4,9 +4,14 @@ version = "0.0.0"
 edition = "2021"
 
 [dependencies]
-scry_isa = { path = "../scry_isa", features=["quickcheck_arbitrary"] }
+scry_isa = { git = "https://github.com/scry-arch/scry_isa.git" }
 byteorder = "1.4.3"
 quickcheck = "1.0.3"
 quickcheck_macros = "1.0.0"
 duplicate = "0.4.1"
 regex = "1.11.1"
+syn_old = { version = "1.0.5", package = "syn" } # Does not compile with lower version, not directly needed
+
+[features]
+default = []
+fail-on-warnings = [] # Forces compilation to fail if any warnings are given. Used in CI.
