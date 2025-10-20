@@ -210,7 +210,7 @@ test_raw! {
 	{
 						"add =>to_add"
 						"ret return_at"
-						"const i0, 2"
+						"const i8, 2"
 		"to_add:"		"add =>0"
 		"return_at:"
 	}
@@ -225,14 +225,14 @@ test_raw! {
 test_raw! {
 	bytes_assembler_directive
 	{
-		".bytes u0, 0"
-		".bytes i0, 1"
+		".bytes u8, 0"
+		".bytes i8, 1"
 		"add =>4"
-		".bytes u1, 2456"
-		".bytes u2, 123762"
+		".bytes u16, 2456"
+		".bytes u32, 123762"
 		"sub =>21"
-		".bytes i1, -123"
-		".bytes i2, -7612"
+		".bytes i16, -123"
+		".bytes i32, -7612"
 		"echo =>100"
 	}
 	[
@@ -251,14 +251,14 @@ test_raw! {
 test_raw! {
 	bytes_assembler_directive_references
 	{
-	"lab0:"		".bytes u0, lab2"
-				".bytes i0, lab4=>lab2"
+	"lab0:"		".bytes u8, lab2"
+				".bytes i8, lab4=>lab2"
 	"lab2:"		"add =>4"
-	"lab4:"		".bytes u1, lab18"
-				".bytes u2, lab4=>lab12"
+	"lab4:"		".bytes u16, lab18"
+				".bytes u32, lab4=>lab12"
 				"sub =>21"
-	"lab12:"	".bytes i1, lab12=>lab18"
-				".bytes i2, lab18=>lab0"
+	"lab12:"	".bytes i16, lab12=>lab18"
+				".bytes i32, lab18=>lab0"
 	"lab18:"	"echo =>100"
 	}
 	[
@@ -277,7 +277,7 @@ test_raw! {
 test_raw! {
 	bytes_followed_by_label_reference
 	{
-					".bytes u1, 0"
+					".bytes u16, 0"
 					"add =>dup_addr"
 	"dup_addr:"		"nop"
 	}
@@ -348,7 +348,7 @@ test_raw_fail! {
 test_raw_fail! {
 	const_invalid_label
 	{
-		"const u0, cmp_fn_addr"
+		"const u8, cmp_fn_addr"
 	}
 	"Unknown label: cmp_fn_addr"
 }
